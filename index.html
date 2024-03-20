@@ -26,26 +26,90 @@
 
   <!-- MAIN -->
   <main class="container">
-    <section id="abstract">
+    <section id="abstract" style="justify-content: center; display: flex;">
+      <article style="max-width: 75%;">
         <h2>Abstract</h2>
         <p>
             In this report, we describe how we developed a CUDA-accelerated version of <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a>.
             This is a short report that will focus on existing and prior practical problems during development, as well as a brief note on performance of the module.
         </p>
-        <p>Access the project on <a href="https://github.com/tornikeo/cosine-similarity/">github</a></p>
+        <p><a href="https://github.com/tornikeo/cosine-similarity/">Access this project on github</a></p>
+      </article>
     </section>
-    <section>
+    <hr>
+    <section id="introduction">
         <h2>Introduction</h2>
+        <p>This report is divided into three parts.
+          <ul>
+            <li><a href="#introduction">Introduction</a> describes the field of metabolomics in the most general terms and introduces CudaSSM</li>
+            <li><a href="#methods">Methods</a> section describes what has and hasn't worked throghout the project, as well explain the reasoning technical decisions of the <code>CudaCosineGreedy</code>. </li>
+            <li><a href="#results">Results</a> section presents our evaluation of the main algorithm, and it's comparison to other papers</li>
+            <li><a href="#discussion">Discussion</a> section describes the main limitations of the approach and our suggestions on how to improve it</li>
+          </ul>   
+        </p>
+
         <h3>Background</h3>
-        <p>This work is in the field of tandem mass spectrometry.</p>
+        
+        <p>This work is in the field of metabolomics.</p>
+
         <blockquote>
-            Tandem mass spectrometry, also known as MS/MS or MS2, is a technique in instrumental analysis where two or more stages of analysis using one or more mass analyzer are performed with an additional reaction step in between these analyses to increase their abilities to analyse chemical samples. A common use of tandem MS is the analysis of biomolecules, such as proteins and peptides. 
+            <strong>Metabolomics</strong> is the scientific study of chemical processes involving metabolites, the small molecule substrates, intermediates, and products of cell metabolism. Specifically, metabolomics is the "systematic study of the unique chemical fingerprints that specific cellular processes leave behind", the study of their small-molecule metabolite profiles.
             <footer>
-                <cite>- from <a href="https://en.wikipedia.org/wiki/Tandem_mass_spectrometry">Wikipedia</a></cite>
+                <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolomics">Wikipedia</a></cite>
             </footer>
         </blockquote>
-        <p></p>
-    </section>
+        
+        <blockquote>
+          In biochemistry, a <strong>metabolite</strong> is an intermediate or end product of metabolism ...  Understanding how pharmaceutical compounds are metabolized and the potential side effects of their metabolites is an important part of drug discovery.
+          <footer>
+            <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolite">Wikipedia</a></cite>
+          </footer>
+        </blockquote>
+
+        <p>In particular, the main task of which CudaSSM is but a single step, is scanning bio-material (i.e. plant matter) by mass spectrometry and finding <em>similarities</em> between the scanning results and results of already-known chemicals from a large database, say, the <a href="https://gnps.ucsd.edu/ProteoSAFe/static/gnps-splash.jsp">GNPS dataset</a></p>
+
+        <blockquote>
+          <p>
+            Mass spectrometry (MS), also called mass spec, is an analytical technique that is used to measure the mass-to-charge ratio of ions. The results are presented as a mass spectrum, a plot of intensity as a function of the mass-to-charge ratio. Mass spectrometry is used in many different fields and is applied to pure samples as well as complex mixtures. 
+          </p>
+          <p>Mass spectrometry has both qualitative and quantitative uses. These include <strong>identifying unknown compounds</strong>, determining the isotopic composition of elements in a molecule, and <strong>determining the structure of a compound</strong> by observing its fragmentation.</p>
+            <footer>
+                  <cite>- from <a href="https://en.wikipedia.org/wiki/Mass_spectrometry">Wikipedia</a></cite>
+            </footer>
+        </blockquote>
+
+
+        <p>The assumption is that if some scanning results consistently have high similarity with already-known compounds, then the scanned matter likely contains those compounds. In lay-terms this could mean detecting an aspirin-like chemical in a common houseplant.</p>
+        
+        <h4>MatchMS and CudaSSM</h4>
+        <p>Analysis of large volume of mass spectrometry data requires computation. The "gold standard" in open-source mass-spectrometry data analysis is a python package called <a href="https://github.com/matchms/matchms">MatchMS</a>. </p>
+
+        <blockquote>
+          MatchMS is a versatile open-source Python package developed for importing, processing, cleaning, and comparing mass spectrometry data (MS/MS). It facilitates the implementation of straightforward, reproducible workflows, transforming raw data from common mass spectra file formats into pre- and post-processed spectral data, and <strong>enabling large-scale spectral similarity comparisons</strong>.
+          <footer>
+            <cite>- from <a href="https://github.com/matchms/matchms">MatchMS</a></cite>
+          </footer>
+        </blockquote>
+
+        <p>Unfortunately, MatchMS isn't designed for handling extremely large spectra. </p>
+
+
+        <!-- Medias-->
+        <figure>
+          <div style="justify-content: center; display: flex;">
+            <img
+            src="assets/perf.png"
+            alt="Performance graph"
+            />
+          </div>
+          <figcaption style="justify-content: center; display: flex;">
+            <p style="max-width: 50%; text-align: center;">
+              Time (seconds) it takes for an out-of-the-box similarity implementation to compare GNPS entries.
+            </p>
+          </figcaption>
+        </figure>
+      </section>
+      <!-- ./ Typography-->
   </main>
   <!-- MAIN -->
 </body>
