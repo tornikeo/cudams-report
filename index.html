@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/pico.min.css">
   <link rel="stylesheet" href="css/main.css">
   <script src="main.js"></script>
-  <title>CudaSSM</title>
+  <title>CudaMS</title>
 </head>
 
 <body>
@@ -16,11 +16,11 @@
   <header class="container">
 
     <header class="container">
-        <hgroup>
-          <h1>GPU-Accelerated Cosine Similarity for Tandem Mass Spectrometry <small><sup><mark>work-in-progress</mark></su></small> </h1>
-          <p>written by <a href="https://tornikeo.github.io/">Tornike Onoprishvili</a> </p>
-        </hgroup>
-      </header>
+      <hgroup>
+        <h1>CUDAMS: CUDA-accelerated Mass Spectrometry <small><sup><mark>work-in-progress</mark></su></small> </h1>
+        <p>written by <a href="https://tornikeo.github.io/">Tornike Onoprishvili</a> </p>
+      </hgroup>
+    </header>
   </header>
   <!-- HEADER -->
 
@@ -30,86 +30,144 @@
       <article style="max-width: 75%;">
         <h2>Abstract</h2>
         <p>
-            In this report, we describe how we developed a CUDA-accelerated version of <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a>.
-            This is a short report that will focus on existing and prior practical problems during development, as well as a brief note on performance of the module.
+          In this report, we describe how we developed a CUDA-accelerated version of <a
+            href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a>.
+          This is a short report that will focus on existing and prior practical problems during development, as well as
+          a brief note on performance of the module.
         </p>
         <p><a href="https://github.com/tornikeo/cosine-similarity/">Access this project on github</a></p>
       </article>
     </section>
     <hr>
     <section id="introduction">
-        <h2>Introduction</h2>
-        <p>This report is divided into three parts.
-          <ul>
-            <li><a href="#introduction">Introduction</a> describes the field of metabolomics in the most general terms and introduces CudaSSM</li>
-            <li><a href="#methods">Methods</a> section describes what has and hasn't worked throghout the project, as well explain the reasoning technical decisions of the <code>CudaCosineGreedy</code>. </li>
-            <li><a href="#results">Results</a> section presents our evaluation of the main algorithm, and it's comparison to other papers</li>
-            <li><a href="#discussion">Discussion</a> section describes the main limitations of the approach and our suggestions on how to improve it</li>
-          </ul>   
+      <h2>Introduction</h2>
+      <p>This report is divided into three parts.
+      <ul>
+        <li><a href="#introduction">Introduction</a> describes the field of metabolomics in the most general terms and
+          introduces CudaMS</li>
+        <li><a href="#methods">Methods</a> section describes what has and hasn't worked throghout the project, as well
+          explain the reasoning technical decisions of the <code>CudaCosineGreedy</code>. </li>
+        <li><a href="#results">Results</a> section presents our evaluation of the main algorithm, and it's comparison to
+          other papers</li>
+        <li><a href="#discussion">Discussion</a> section describes the main limitations of the approach and our
+          suggestions on how to improve it</li>
+      </ul>
+      </p>
+
+      <h3>Background</h3>
+
+      <p>This work is in the field of metabolomics.</p>
+
+      <blockquote>
+        <strong>Metabolomics</strong> is the scientific study of chemical processes involving metabolites, the small
+        molecule substrates, intermediates, and products of cell metabolism. Specifically, metabolomics is the
+        "systematic study of the unique chemical fingerprints that specific cellular processes leave behind", the study
+        of their small-molecule metabolite profiles.
+        <footer>
+          <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolomics">Wikipedia</a></cite>
+        </footer>
+      </blockquote>
+
+      <blockquote>
+        In biochemistry, a <strong>metabolite</strong> is an intermediate or end product of metabolism ... Understanding
+        how pharmaceutical compounds are metabolized and the potential side effects of their metabolites is an important
+        part of drug discovery.
+        <footer>
+          <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolite">Wikipedia</a></cite>
+        </footer>
+      </blockquote>
+
+      <p>In particular, the main task of which CudaMS is but a single step, is scanning bio-material (i.e. plant matter)
+        by mass spectrometry and finding <em>similarities</em> between the scanning results and results of already-known
+        chemicals from a large database, say, the <a href="https://gnps.ucsd.edu/ProteoSAFe/static/gnps-splash.jsp">GNPS
+          dataset</a></p>
+
+      <blockquote>
+        <p>
+          Mass spectrometry (MS), also called mass spec, is an analytical technique that is used to measure the
+          mass-to-charge ratio of ions. The results are presented as a mass spectrum, a plot of intensity as a function
+          of the mass-to-charge ratio. Mass spectrometry is used in many different fields and is applied to pure samples
+          as well as complex mixtures.
         </p>
-
-        <h3>Background</h3>
-        
-        <p>This work is in the field of metabolomics.</p>
-
-        <blockquote>
-            <strong>Metabolomics</strong> is the scientific study of chemical processes involving metabolites, the small molecule substrates, intermediates, and products of cell metabolism. Specifically, metabolomics is the "systematic study of the unique chemical fingerprints that specific cellular processes leave behind", the study of their small-molecule metabolite profiles.
-            <footer>
-                <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolomics">Wikipedia</a></cite>
-            </footer>
-        </blockquote>
-        
-        <blockquote>
-          In biochemistry, a <strong>metabolite</strong> is an intermediate or end product of metabolism ...  Understanding how pharmaceutical compounds are metabolized and the potential side effects of their metabolites is an important part of drug discovery.
-          <footer>
-            <cite>- from <a href="https://en.wikipedia.org/wiki/Metabolite">Wikipedia</a></cite>
-          </footer>
-        </blockquote>
-
-        <p>In particular, the main task of which CudaSSM is but a single step, is scanning bio-material (i.e. plant matter) by mass spectrometry and finding <em>similarities</em> between the scanning results and results of already-known chemicals from a large database, say, the <a href="https://gnps.ucsd.edu/ProteoSAFe/static/gnps-splash.jsp">GNPS dataset</a></p>
-
-        <blockquote>
-          <p>
-            Mass spectrometry (MS), also called mass spec, is an analytical technique that is used to measure the mass-to-charge ratio of ions. The results are presented as a mass spectrum, a plot of intensity as a function of the mass-to-charge ratio. Mass spectrometry is used in many different fields and is applied to pure samples as well as complex mixtures. 
-          </p>
-          <p>Mass spectrometry has both qualitative and quantitative uses. These include <strong>identifying unknown compounds</strong>, determining the isotopic composition of elements in a molecule, and <strong>determining the structure of a compound</strong> by observing its fragmentation.</p>
-            <footer>
-                  <cite>- from <a href="https://en.wikipedia.org/wiki/Mass_spectrometry">Wikipedia</a></cite>
-            </footer>
-        </blockquote>
+        <p>Mass spectrometry has both qualitative and quantitative uses. These include <strong>identifying unknown
+            compounds</strong>, determining the isotopic composition of elements in a molecule, and <strong>determining
+            the structure of a compound</strong> by observing its fragmentation.</p>
+        <footer>
+          <cite>- from <a href="https://en.wikipedia.org/wiki/Mass_spectrometry">Wikipedia</a></cite>
+        </footer>
+      </blockquote>
 
 
-        <p>The assumption is that if some scanning results consistently have high similarity with already-known compounds, then the scanned matter likely contains those compounds. In lay-terms this could mean detecting an aspirin-like chemical in a common houseplant.</p>
-        
-        <h4>MatchMS and CudaSSM</h4>
-        <p>Analysis of large volume of mass spectrometry data requires computation. The "gold standard" in open-source mass-spectrometry data analysis is a python package called <a href="https://github.com/matchms/matchms">MatchMS</a>. </p>
+      <p>The assumption is that if some scanning results consistently have high similarity with already-known compounds,
+        then the scanned matter likely contains those compounds. In other words, this could mean detecting an
+        aspirin-like chemical in a common houseplant.</p>
 
-        <blockquote>
-          MatchMS is a versatile open-source Python package developed for importing, processing, cleaning, and comparing mass spectrometry data (MS/MS). It facilitates the implementation of straightforward, reproducible workflows, transforming raw data from common mass spectra file formats into pre- and post-processed spectral data, and <strong>enabling large-scale spectral similarity comparisons</strong>.
-          <footer>
-            <cite>- from <a href="https://github.com/matchms/matchms">MatchMS</a></cite>
-          </footer>
-        </blockquote>
+      <h4>MatchMS and CudaMS</h4>
+      <p>Analysis of large volume of mass spectrometry data requires computation. The "gold standard" in open-source
+        mass-spectrometry data analysis is a python package called <a
+          href="https://github.com/matchms/matchms">MatchMS</a>. </p>
 
-        <p>Unfortunately, MatchMS isn't designed for handling extremely large spectra. </p>
+      <blockquote>
+        MatchMS is a versatile open-source Python package developed for importing, processing, cleaning, and comparing
+        mass spectrometry data (MS/MS). It facilitates the implementation of straightforward, reproducible workflows,
+        transforming raw data from common mass spectra file formats into pre- and post-processed spectral data, and
+        <strong>enabling large-scale spectral similarity comparisons</strong>.
+        <footer>
+          <cite>- from <a href="https://github.com/matchms/matchms">MatchMS</a></cite>
+        </footer>
+      </blockquote>
 
+      <p>
+        The critical part of the matchms pipeline is calculating the similarity between pairs of sets of spectra. A robust algorithm for comparing spectra is CosineGreedy, which is also the focus of this report.
+      </p>
 
-        <!-- Medias-->
+      <blockquote>
+          The cosine score aims at quantifying the similarity between two mass spectra.
+          The score is calculated by finding best possible matches between peaks
+          of two spectra. Two peaks are considered a potential match if their
+          m/z ratios lie within the given 'tolerance'. The underlying <strong>peak assignment problem</strong> is here solved in a ‘greedy’ way.
+        <footer>
+          <cite>- from <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">matchms docs</a></cite>
+        </footer>
+      </blockquote>
+
+      <p>
+        The <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a> algorithm is useful for processing noisy spectrometry data, since it allows for a "tolerance" amount of error in measured spectrum when comparing against a known compound dataset. Unfortunately, this robustness requires solving an underlying peak assignment problem, for every pair of spectra. The time complexity for comparing sets of spectra is thus O(R * Q * N * M), where R, Q is size of the two spectral sests, and N, M is the number of peaks (length of spectra) in each set.
+      </p>
+      <p>This issue makes it computationally infeasible to calculate pairwise similarity using MatchMS, beyond 10<sup>10</sup> pairs, as the estimated time it will take MatchMS to finish calculations is more than 200 hours.
+      </p>
+
+      <!-- Medias-->
+      <div class="grid">
+
         <figure>
           <div style="justify-content: center; display: flex;">
-            <img
-            src="assets/perf.png"
-            alt="Performance graph"
-            />
+            <img src="assets/perf_speedup.png" alt="Performance graph" />
           </div>
           <figcaption style="justify-content: center; display: flex;">
-            <p style="max-width: 50%; text-align: center;">
-              Time (seconds) it takes for an out-of-the-box similarity implementation to compare GNPS entries.
+            <p style="max-width: 75%; text-align: center;">
+              Processing speed, compared to MatchMS.
             </p>
           </figcaption>
         </figure>
-      </section>
-      <!-- ./ Typography-->
+
+        <figure>
+          <div style="justify-content: center; display: flex;">
+            <img src="assets/perf.png" alt="Performance graph" />
+          </div>
+          <figcaption style="justify-content: center; display: flex;">
+            <p style="max-width: 75%; text-align: center;">
+              Time it takes for an out-of-the-box similarity implementation to compare first N GNPS entries.
+            </p>
+          </figcaption>
+        </figure>
+        <!-- Medias-->
+      </div>
+      
+
+    </section>
+
+
   </main>
   <!-- MAIN -->
 </body>
