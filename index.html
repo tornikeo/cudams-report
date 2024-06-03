@@ -26,18 +26,6 @@
 
   <!-- MAIN -->
   <main class="container">
-    <section id="abstract" style="justify-content: center; display: flex;">
-      <article style="max-width: 75%;">
-        <h2>Abstract</h2>
-        <p>
-          In this report, we describe how we developed a CUDA-accelerated version of <a
-            href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a>.
-          This is a short report that will focus on existing and prior practical problems during development, as well as
-          a brief note on performance of the module.
-        </p>
-        <p><a href="https://github.com/tornikeo/cosine-similarity/">Access this project on github</a></p>
-      </article>
-    </section>
     <hr>
     <section id="introduction">
       <h2>Introduction</h2>
@@ -118,31 +106,44 @@
       </blockquote>
 
       <p>
-        The critical part of the matchms pipeline is calculating the similarity between pairs of sets of spectra. A robust algorithm for comparing spectra is CosineGreedy, which is also the focus of this report.
+        The critical part of the matchms pipeline is calculating the similarity between pairs of sets of spectra. One of the most popular approaches in current (2024) metabolomics community is to use angle-based scores (also calles "Cosine" score).
       </p>
 
       <blockquote>
           The cosine score aims at quantifying the similarity between two mass spectra.
           The score is calculated by finding best possible matches between peaks
           of two spectra. Two peaks are considered a potential match if their
-          m/z ratios lie within the given 'tolerance'. The underlying <strong>peak assignment problem</strong> is here solved in a ‘greedy’ way.
+          m/z ratios lie within the given 'tolerance'. The underlying <strong>peak assignment problem</strong> is here solved in a 'greedy' way.
         <footer>
           <cite>- from <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">matchms docs</a></cite>
         </footer>
       </blockquote>
 
       <p>
-        The <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a> algorithm is useful for processing noisy spectrometry data, since it allows for a "tolerance" amount of error in measured spectrum when comparing against a known compound dataset. Unfortunately, this robustness requires solving an underlying peak assignment problem, for every pair of spectra. The time complexity for comparing sets of spectra is thus O(R * Q * N * M), where R, Q is size of the two spectral sests, and N, M is the number of peaks (length of spectra) in each set.
+        The <a href="https://matchms.readthedocs.io/en/latest/_modules/matchms/similarity/CosineGreedy.html#CosineGreedy">CosineGreedy</a> algorithm is useful for processing noisy spectrometry data, since it allows for a "tolerance" amount of error in measured spectrum when comparing against a known compound dataset, while still being able to detect a similar compound. The <strong>issue</strong> however, is the the sheer <i>size</i> the data, and calculations required.
       </p>
-      <p>This issue makes it computationally infeasible to calculate pairwise similarity using MatchMS, beyond 10<sup>10</sup> pairs, as the estimated time it will take MatchMS to finish calculations is more than 200 hours.
+
+      <p>
+        To put this into actual, concrete Gigabytes required for a one full run, let's do a quick calculation:
+        <ul>
+          <li>A single spectrum can contain, might contain 64 peaks. Each peak is specified with 2, 32 bit floats (4 bytes). </li>
+          <li>A typical "full" run at Pangea would amount to comparing 100k spectra with a repository of 1.5M spectra. </li>
+          <li>To store the 100k spectra, with each spectrum having average 64 peaks, we will use 51.2Mb and 768Mb (not too bad so far) </li>
+          <li>We need to at least <i>consider</i>, never mind to calculate, how many scores? 100k * 1.5M = 150 billion scores (each being a float, this is <strong>600GB</strong>).</li>
+          <li>Here's the fun part: For each of these 150B scores, we need to perform at least 64 * 4 (more on that "4" later) operations to find, sort and crunch down peaks to one number.</li>
+        </ul>
       </p>
+      
+      <p>Understandably, with CPUs we aren't talking about CPU-hours, but CPU-months (or even a CPU-year. Yikes!). How do we do this?</p>
+
+      <p>Answer: We write an optimized GPU kernel, and run let it run. Before we get into specifics of how this is done, let's admire the end-results first:</p>
 
       <!-- Medias-->
       <div class="grid">
 
         <figure>
           <div style="justify-content: center; display: flex;">
-            <img src="assets/perf_speedup.png" alt="Performance graph" />
+            <img src="assets/perf_speedup.svg" alt="Performance graph" />
           </div>
           <figcaption style="justify-content: center; display: flex;">
             <p style="max-width: 75%; text-align: center;">
@@ -153,7 +154,7 @@
 
         <figure>
           <div style="justify-content: center; display: flex;">
-            <img src="assets/perf.png" alt="Performance graph" />
+            <img src="assets/perf.svg" alt="Performance graph" />
           </div>
           <figcaption style="justify-content: center; display: flex;">
             <p style="max-width: 75%; text-align: center;">
@@ -164,6 +165,7 @@
         <!-- Medias-->
       </div>
       
+      <p></p>
 
     </section>
 
